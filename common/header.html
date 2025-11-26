@@ -39,11 +39,22 @@
       
       // Mapping of category slugs to image URLs
       // Only counties listed here will show the header
+      // 
+      // To add a county:
+      // 1. Upload image via Theme Uploader (Themes → Your Theme → Upload → select from assets folder)
+      //    Then use: '/assets/filename.jpg'
+      // 2. Or upload to Cloudflare R2 and use full URL: 'https://your-bucket.r2.cloudflarestorage.com/image.jpg'
+      // 3. Or use Discourse uploads: '/uploads/path/to/image.jpg'
+      //
       const countyImages = {
         'reeves-county-tx': '/uploads/db5755/original/3X/3/7/378e553519f9d393623059dd6beadbe1593cc79e.jpg',
-        // Add more county images here:
-        // 'ward-county-tx': '/images/ward-county.jpg',
+        // Add more counties here:
+        // 'ward-county-tx': '/assets/ward-county.jpg',
+        // 'jefferson-county-tx': 'https://your-r2-bucket.com/jefferson.jpg',
       };
+      
+      // Get default image from settings (if set)
+      const defaultImageUrl = api.getSetting('county_header_image_url') || '';
       
       // Extract just the subcategory slug if it's a nested category
       let slugToUse = categorySlug;
@@ -55,11 +66,27 @@
         }
       }
       
-      // Check if this county is declared in countyImages - if not, don't show header
-      const imageUrl = countyImages[slugToUse] || countyImages[categorySlug];
+      // Check if this county is declared in countyImages - if not, use default or don't show header
+      let imageUrl = countyImages[slugToUse] || countyImages[categorySlug];
+      
+      // If no specific image found, use default from settings
+      if (!imageUrl && defaultImageUrl) {
+        imageUrl = defaultImageUrl;
+      }
+      
+      // If still no image, don't show header
       if (!imageUrl) {
-        // County not in the list, don't show header
         return;
+      }
+      
+      // Handle asset paths - Discourse serves assets from /assets/theme-id/filename
+      // But we'll try both /assets/filename and let Discourse resolve it
+      if (imageUrl.startsWith('/assets/')) {
+        // Asset paths work as-is in Discourse
+        imageUrl = imageUrl;
+      } else if (!imageUrl.startsWith('http') && !imageUrl.startsWith('//')) {
+        // Ensure relative paths start with /
+        imageUrl = imageUrl.startsWith('/') ? imageUrl : '/' + imageUrl;
       }
       
       // Function to transform category slug to external URL
