@@ -148,7 +148,7 @@
           uploadBtn.disabled = false;
           
           // Show preview
-          showImagePreview(item, imageUrl);
+          showImagePreview(container, imageUrl);
           
         } catch (error) {
           console.error('Upload error:', error);
@@ -249,7 +249,12 @@
     
     // Get counties from settings (list type returns array of strings)
     const countiesSetting = api.getSetting('counties') || [];
+    
+    console.log('County header debug - slugToUse:', slugToUse, 'categorySlug:', categorySlug);
+    console.log('County header debug - countiesSetting:', countiesSetting);
+    
     if (!countiesSetting || !Array.isArray(countiesSetting) || countiesSetting.length === 0) {
+      console.log('County header debug - No counties setting or empty array');
       return;
     }
     
@@ -258,10 +263,14 @@
     for (let countyJson of countiesSetting) {
       try {
         const county = typeof countyJson === 'string' ? JSON.parse(countyJson) : countyJson;
+        console.log('County header debug - checking county:', county);
         // Check if slug matches (try both slugToUse and categorySlug)
-        if (county && county.slug && (county.slug === slugToUse || county.slug === categorySlug)) {
-          matchedCounty = county;
-          break;
+        if (county && county.slug) {
+          if (county.slug === slugToUse || county.slug === categorySlug) {
+            matchedCounty = county;
+            console.log('County header debug - MATCHED:', matchedCounty);
+            break;
+          }
         }
       } catch (e) {
         console.error('Error parsing county JSON:', e, countyJson);
@@ -269,7 +278,13 @@
     }
     
     // If no matching county found, don't show header
-    if (!matchedCounty || !matchedCounty.imageUrl || !matchedCounty.directoryUrl) {
+    if (!matchedCounty) {
+      console.log('County header debug - No matching county found');
+      return;
+    }
+    
+    if (!matchedCounty.imageUrl || !matchedCounty.directoryUrl) {
+      console.log('County header debug - Missing imageUrl or directoryUrl:', matchedCounty);
       return;
     }
     
