@@ -12,88 +12,49 @@
         return;
       }
       
-      // Get category slug from URL or body class
-      const bodyClasses = document.body.className.split(' ');
-      let categorySlug = null;
-      
-      // Find category class (format: category-*)
-      for (let className of bodyClasses) {
-        if (className.startsWith('category-') && className.includes('county')) {
-          // Extract slug from class (remove 'category-' prefix)
-          categorySlug = className.replace('category-', '');
-          break;
+      // County data array - add all county information here
+      const counties = [
+        {
+          slug: 'reeves-county-tx',
+          imageUrl: '/uploads/db5755/original/3X/3/7/378e553519f9d393623059dd6beadbe1593cc79e.jpg',
+          linkUrl: 'https://reeves-county-texas.mineralrightsforum.com/',
+          categoryPage: 'https://your-forum-url.com/c/parent-category/reeves-county-tx'
         }
-      }
+        // Add more counties here:
+        // {
+        //   slug: 'ward-county-tx',
+        //   imageUrl: '/images/ward-county.jpg',
+        //   linkUrl: 'https://ward-county-texas.mineralrightsforum.com/',
+        //   categoryPage: 'https://your-forum-url.com/c/parent-category/ward-county-tx'
+        // },
+      ];
       
-      // Also try to get from URL
-      if (!categorySlug) {
-        const urlMatch = url.match(/\/c\/[^\/]+\/([^\/]+)/);
-        if (urlMatch && urlMatch[1] && urlMatch[1].includes('county')) {
-          categorySlug = urlMatch[1];
+      // Find matching county by comparing current URL with categoryPage
+      // Normalize URLs for comparison (remove protocol, trailing slashes, query params)
+      const normalizeUrl = (url) => {
+        try {
+          const urlObj = new URL(url);
+          return urlObj.pathname.replace(/\/$/, '').toLowerCase();
+        } catch (e) {
+          // Fallback if URL parsing fails
+          return url.split('?')[0]
+                    .replace(/^https?:\/\//, '')
+                    .replace(/\/$/, '')
+                    .toLowerCase();
         }
-      }
-      
-      if (!categorySlug || !categorySlug.includes('county')) {
-        return;
-      }
-      
-      // Mapping of category slugs to image URLs
-      // Only counties listed here will show the header
-      const countyImages = {
-        'reeves-county-tx': '/uploads/db5755/original/3X/3/7/378e553519f9d393623059dd6beadbe1593cc79e.jpg',
-        // Add more county images here:
-        // 'ward-county-tx': '/images/ward-county.jpg',
       };
       
-      // Extract just the subcategory slug if it's a nested category
-      let slugToUse = categorySlug;
-      if (categorySlug.includes('-') && categorySlug.split('-').length > 3) {
-        const parts = categorySlug.split('-');
-        const countyIndex = parts.indexOf('county');
-        if (countyIndex >= 0 && countyIndex < parts.length - 1) {
-          slugToUse = parts.slice(countyIndex - 1).join('-');
-        }
-      }
+      const currentPath = normalizeUrl(window.location.href);
+      const matchingCounty = counties.find(county => {
+        const countyPagePath = normalizeUrl(county.categoryPage);
+        // Match if paths are the same after normalization
+        return currentPath === countyPagePath;
+      });
       
-      // Check if this county is declared in countyImages - if not, don't show header
-      const imageUrl = countyImages[slugToUse] || countyImages[categorySlug];
-      if (!imageUrl) {
-        // County not in the list, don't show header
+      // If no matching county found, don't show header
+      if (!matchingCounty) {
         return;
       }
-      
-      // Function to transform category slug to external URL
-      // External URLs use full state names (e.g., "texas" not "tx")
-      function getExternalUrl(slug) {
-        // Map abbreviations back to full state names for external URLs
-        const abbreviationToState = {
-          'al': 'alabama', 'ak': 'alaska', 'az': 'arizona', 'ar': 'arkansas',
-          'ca': 'california', 'co': 'colorado', 'ct': 'connecticut', 'de': 'delaware',
-          'fl': 'florida', 'ga': 'georgia', 'hi': 'hawaii', 'id': 'idaho',
-          'il': 'illinois', 'in': 'indiana', 'ia': 'iowa', 'ks': 'kansas',
-          'ky': 'kentucky', 'la': 'louisiana', 'me': 'maine', 'md': 'maryland',
-          'ma': 'massachusetts', 'mi': 'michigan', 'mn': 'minnesota', 'ms': 'mississippi',
-          'mo': 'missouri', 'mt': 'montana', 'ne': 'nebraska', 'nv': 'nevada',
-          'nh': 'new-hampshire', 'nj': 'new-jersey', 'nm': 'new-mexico', 'ny': 'new-york',
-          'nc': 'north-carolina', 'nd': 'north-dakota', 'oh': 'ohio', 'ok': 'oklahoma',
-          'or': 'oregon', 'pa': 'pennsylvania', 'ri': 'rhode-island',
-          'sc': 'south-carolina', 'sd': 'south-dakota', 'tn': 'tennessee', 'tx': 'texas',
-          'ut': 'utah', 'vt': 'vermont', 'va': 'virginia', 'wa': 'washington',
-          'wv': 'west-virginia', 'wi': 'wisconsin', 'wy': 'wyoming'
-        };
-        
-        const parts = slug.split('-');
-        const lastPart = parts[parts.length - 1];
-        
-        // If last part is a state abbreviation, convert it to full state name
-        if (abbreviationToState[lastPart]) {
-          parts[parts.length - 1] = abbreviationToState[lastPart];
-        }
-        
-        return `https://${parts.join('-')}.mineralrightsforum.com/`;
-      }
-      
-      const externalUrl = getExternalUrl(slugToUse);
       
       // Find where to insert the header (before topic list or after category title)
       const insertPoint = document.querySelector('.category-title, .topic-list, .category-list');
@@ -104,8 +65,8 @@
       // Create header HTML
       const headerHTML = `
         <div class="county-category-header">
-          <a href="${externalUrl}" target="_blank" rel="noopener noreferrer" class="county-header-link">
-            <img src="${imageUrl}" alt="${slugToUse}" class="county-header-image" />
+          <a href="${matchingCounty.linkUrl}" target="_blank" rel="noopener noreferrer" class="county-header-link">
+            <img src="${matchingCounty.imageUrl}" alt="${matchingCounty.slug}" class="county-header-image" />
           </a>
         </div>
       `;
