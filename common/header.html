@@ -73,9 +73,26 @@
         return;
       }
       
-      const imageUrl = matchedCounty.imageUrl;
+      // Handle image URL - support both asset paths and full URLs
+      let imageUrl = matchedCounty.imageUrl;
+      // If it's an asset path (starts with /assets/), ensure it's properly formatted
+      if (imageUrl.startsWith('/assets/')) {
+        // Asset paths should work as-is in Discourse
+        imageUrl = imageUrl;
+      } else if (!imageUrl.startsWith('http') && !imageUrl.startsWith('//')) {
+        // If it's a relative path, ensure it starts with /
+        imageUrl = imageUrl.startsWith('/') ? imageUrl : '/' + imageUrl;
+      }
+      
       const externalUrl = matchedCounty.directoryUrl;
       const countyName = matchedCounty.name || slugToUse;
+      
+      // Debug logging (remove in production if needed)
+      console.log('County header matched:', {
+        slug: slugToUse,
+        county: matchedCounty,
+        imageUrl: imageUrl
+      });
       
       // Find where to insert the header (before topic list or after category title)
       const insertPoint = document.querySelector('.category-title, .topic-list, .category-list');
