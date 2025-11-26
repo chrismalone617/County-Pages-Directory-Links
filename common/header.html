@@ -47,19 +47,24 @@
         }
       }
       
-      // Get counties from settings (JSON type returns array directly)
+      // Get counties from settings (list type returns array of strings)
       const countiesSetting = api.getSetting('counties') || [];
       if (!countiesSetting || !Array.isArray(countiesSetting) || countiesSetting.length === 0) {
         return;
       }
       
-      // Find matching county from settings
+      // Parse counties from settings and find matching county
       let matchedCounty = null;
-      for (let county of countiesSetting) {
-        // Check if slug matches (try both slugToUse and categorySlug)
-        if (county && county.slug && (county.slug === slugToUse || county.slug === categorySlug)) {
-          matchedCounty = county;
-          break;
+      for (let countyJson of countiesSetting) {
+        try {
+          const county = typeof countyJson === 'string' ? JSON.parse(countyJson) : countyJson;
+          // Check if slug matches (try both slugToUse and categorySlug)
+          if (county && county.slug && (county.slug === slugToUse || county.slug === categorySlug)) {
+            matchedCounty = county;
+            break;
+          }
+        } catch (e) {
+          console.error('Error parsing county JSON:', e, countyJson);
         }
       }
       
