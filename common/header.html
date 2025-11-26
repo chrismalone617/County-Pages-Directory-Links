@@ -1,5 +1,15 @@
 <script type="text/discourse-plugin" version="0.8">
+  // Main page change handler
   api.onPageChange((url, title) => {
+    // Check if we're on the admin settings page - add upload buttons
+    if (url.includes('/admin/customize/themes/')) {
+      setTimeout(() => {
+        addUploadButtons();
+      }, 1500);
+      return;
+    }
+    
+    // Otherwise, handle county category pages
     // Only run on category pages
     if (!url.includes('/c/')) {
       return;
@@ -7,111 +17,262 @@
     
     // Wait for page to load
     setTimeout(() => {
-      // Check if we already added the header (avoid duplicates)
-      if (document.querySelector('.county-category-header')) {
-        return;
-      }
+      renderCountyHeader(url);
+    }, 500);
+  });
+  
+  function addUploadButtons() {
+    const countiesSetting = document.querySelector('.setting[data-setting-name="counties"]');
+    if (!countiesSetting) return;
+    
+    const listItems = countiesSetting.querySelectorAll('.setting-list-item');
+    
+    listItems.forEach((item) => {
+      const input = item.querySelector('input[type="text"]');
+      if (!input) return;
       
-      // Get category slug from URL or body class
-      const bodyClasses = document.body.className.split(' ');
-      let categorySlug = null;
+      // Check if upload button already exists
+      if (item.querySelector('.county-upload-btn')) return;
       
-      // Find category class (format: category-*)
-      for (let className of bodyClasses) {
-        if (className.startsWith('category-') && className.includes('county')) {
-          // Extract slug from class (remove 'category-' prefix)
-          categorySlug = className.replace('category-', '');
-          break;
-        }
-      }
+      // Create upload button
+      const uploadBtn = document.createElement('button');
+      uploadBtn.type = 'button';
+      uploadBtn.className = 'btn btn-small county-upload-btn';
+      uploadBtn.textContent = 'Upload Image';
+      uploadBtn.style.marginTop = '8px';
+      uploadBtn.style.marginRight = '8px';
       
-      // Also try to get from URL
-      if (!categorySlug) {
-        const urlMatch = url.match(/\/c\/[^\/]+\/([^\/]+)/);
-        if (urlMatch && urlMatch[1] && urlMatch[1].includes('county')) {
-          categorySlug = urlMatch[1];
-        }
-      }
+      // Create hidden file input
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.style.display = 'none';
       
-      if (!categorySlug || !categorySlug.includes('county')) {
-        return;
-      }
-      
-      // Extract just the subcategory slug if it's a nested category
-      let slugToUse = categorySlug;
-      if (categorySlug.includes('-') && categorySlug.split('-').length > 3) {
-        const parts = categorySlug.split('-');
-        const countyIndex = parts.indexOf('county');
-        if (countyIndex >= 0 && countyIndex < parts.length - 1) {
-          slugToUse = parts.slice(countyIndex - 1).join('-');
-        }
-      }
-      
-      // Get counties from settings (list type returns array of strings)
-      const countiesSetting = api.getSetting('counties') || [];
-      if (!countiesSetting || !Array.isArray(countiesSetting) || countiesSetting.length === 0) {
-        return;
-      }
-      
-      // Parse counties from settings and find matching county
-      let matchedCounty = null;
-      for (let countyJson of countiesSetting) {
-        try {
-          const county = typeof countyJson === 'string' ? JSON.parse(countyJson) : countyJson;
-          // Check if slug matches (try both slugToUse and categorySlug)
-          if (county && county.slug && (county.slug === slugToUse || county.slug === categorySlug)) {
-            matchedCounty = county;
-            break;
-          }
-        } catch (e) {
-          console.error('Error parsing county JSON:', e, countyJson);
-        }
-      }
-      
-      // If no matching county found, don't show header
-      if (!matchedCounty || !matchedCounty.imageUrl || !matchedCounty.directoryUrl) {
-        return;
-      }
-      
-      // Handle image URL - support both asset paths and full URLs
-      let imageUrl = matchedCounty.imageUrl;
-      // If it's an asset path (starts with /assets/), ensure it's properly formatted
-      if (imageUrl.startsWith('/assets/')) {
-        // Asset paths should work as-is in Discourse
-        imageUrl = imageUrl;
-      } else if (!imageUrl.startsWith('http') && !imageUrl.startsWith('//')) {
-        // If it's a relative path, ensure it starts with /
-        imageUrl = imageUrl.startsWith('/') ? imageUrl : '/' + imageUrl;
-      }
-      
-      const externalUrl = matchedCounty.directoryUrl;
-      const countyName = matchedCounty.name || slugToUse;
-      
-      // Debug logging (remove in production if needed)
-      console.log('County header matched:', {
-        slug: slugToUse,
-        county: matchedCounty,
-        imageUrl: imageUrl
+      uploadBtn.addEventListener('click', () => {
+        fileInput.click();
       });
       
-      // Find where to insert the header (before topic list or after category title)
-      const insertPoint = document.querySelector('.category-title, .topic-list, .category-list');
-      if (!insertPoint) {
-        return;
+      fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Uploading...';
+        
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('type', 'image');
+          formData.append('pasted', 'true');
+          
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+          
+          const response = await fetch('/uploads.json', {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'X-CSRF-Token': csrfToken,
+            },
+            credentials: 'same-origin',
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.errors?.[0] || 'Upload failed');
+          }
+          
+          const data = await response.json();
+          const imageUrl = data.url || data.short_path || `/uploads/${data.filename}`;
+          
+          // Update the JSON in the input
+          let countyData = {};
+          try {
+            const currentValue = input.value.trim();
+            if (currentValue) {
+              countyData = JSON.parse(currentValue);
+            }
+          } catch (e) {
+            // Start with empty structure if invalid JSON
+            countyData = {
+              name: '',
+              slug: '',
+              imageUrl: '',
+              directoryUrl: ''
+            };
+          }
+          
+          countyData.imageUrl = imageUrl;
+          input.value = JSON.stringify(countyData);
+          
+          // Trigger events to save
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          
+          uploadBtn.textContent = 'Change Image';
+          uploadBtn.disabled = false;
+          
+          // Show preview
+          showImagePreview(item, imageUrl);
+          
+        } catch (error) {
+          console.error('Upload error:', error);
+          alert('Failed to upload image: ' + error.message + '\n\nYou can also upload via Settings → Files and paste the URL.');
+          uploadBtn.textContent = 'Upload Image';
+          uploadBtn.disabled = false;
+        }
+      });
+      
+      // Insert upload button after input
+      const inputContainer = input.parentNode;
+      inputContainer.appendChild(uploadBtn);
+      inputContainer.appendChild(fileInput);
+      
+      // Check if there's already an image URL and show preview
+      try {
+        const currentValue = input.value.trim();
+        if (currentValue) {
+          const countyData = JSON.parse(currentValue);
+          if (countyData.imageUrl) {
+            showImagePreview(item, countyData.imageUrl);
+            uploadBtn.textContent = 'Change Image';
+          }
+        }
+      } catch (e) {
+        // Ignore parse errors
       }
-      
-      // Create header HTML
-      const headerHTML = `
-        <div class="county-category-header">
-          <a href="${externalUrl}" target="_blank" rel="noopener noreferrer" class="county-header-link">
-            <img src="${imageUrl}" alt="${countyName}" class="county-header-image" />
-          </a>
-        </div>
-      `;
-      
-      // Insert before the insert point
-      insertPoint.insertAdjacentHTML('beforebegin', headerHTML);
-    }, 500); // Wait 500ms for page to fully load
-  });
+    });
+  }
+  
+  function showImagePreview(container, imageUrl) {
+    // Remove existing preview
+    const existingPreview = container.querySelector('.county-image-preview');
+    if (existingPreview) {
+      existingPreview.remove();
+    }
+    
+    // Create preview
+    const preview = document.createElement('div');
+    preview.className = 'county-image-preview';
+    preview.style.marginTop = '8px';
+    preview.style.maxWidth = '200px';
+    
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.style.maxWidth = '100%';
+    img.style.height = 'auto';
+    img.style.border = '1px solid #ddd';
+    img.style.borderRadius = '4px';
+    img.style.display = 'block';
+    
+    preview.appendChild(img);
+    container.appendChild(preview);
+  }
+  
+  function renderCountyHeader(url) {
+    // Check if we already added the header (avoid duplicates)
+    if (document.querySelector('.county-category-header')) {
+      return;
+    }
+    
+    // Get category slug from URL or body class
+    const bodyClasses = document.body.className.split(' ');
+    let categorySlug = null;
+    
+    // Find category class (format: category-*)
+    for (let className of bodyClasses) {
+      if (className.startsWith('category-') && className.includes('county')) {
+        // Extract slug from class (remove 'category-' prefix)
+        categorySlug = className.replace('category-', '');
+        break;
+      }
+    }
+    
+    // Also try to get from URL
+    if (!categorySlug) {
+      const urlMatch = url.match(/\/c\/[^\/]+\/([^\/]+)/);
+      if (urlMatch && urlMatch[1] && urlMatch[1].includes('county')) {
+        categorySlug = urlMatch[1];
+      }
+    }
+    
+    if (!categorySlug || !categorySlug.includes('county')) {
+      return;
+    }
+    
+    // Extract just the subcategory slug if it's a nested category
+    let slugToUse = categorySlug;
+    if (categorySlug.includes('-') && categorySlug.split('-').length > 3) {
+      const parts = categorySlug.split('-');
+      const countyIndex = parts.indexOf('county');
+      if (countyIndex >= 0 && countyIndex < parts.length - 1) {
+        slugToUse = parts.slice(countyIndex - 1).join('-');
+      }
+    }
+    
+    // Get counties from settings (list type returns array of strings)
+    const countiesSetting = api.getSetting('counties') || [];
+    if (!countiesSetting || !Array.isArray(countiesSetting) || countiesSetting.length === 0) {
+      return;
+    }
+    
+    // Parse counties from settings and find matching county
+    let matchedCounty = null;
+    for (let countyJson of countiesSetting) {
+      try {
+        const county = typeof countyJson === 'string' ? JSON.parse(countyJson) : countyJson;
+        // Check if slug matches (try both slugToUse and categorySlug)
+        if (county && county.slug && (county.slug === slugToUse || county.slug === categorySlug)) {
+          matchedCounty = county;
+          break;
+        }
+      } catch (e) {
+        console.error('Error parsing county JSON:', e, countyJson);
+      }
+    }
+    
+    // If no matching county found, don't show header
+    if (!matchedCounty || !matchedCounty.imageUrl || !matchedCounty.directoryUrl) {
+      return;
+    }
+    
+    // Handle image URL - support both asset paths and full URLs
+    let imageUrl = matchedCounty.imageUrl;
+    // If it's an asset path (starts with /assets/), ensure it's properly formatted
+    if (imageUrl.startsWith('/assets/')) {
+      // Asset paths should work as-is in Discourse
+      imageUrl = imageUrl;
+    } else if (!imageUrl.startsWith('http') && !imageUrl.startsWith('//')) {
+      // If it's a relative path, ensure it starts with /
+      imageUrl = imageUrl.startsWith('/') ? imageUrl : '/' + imageUrl;
+    }
+    
+    const externalUrl = matchedCounty.directoryUrl;
+    const countyName = matchedCounty.name || slugToUse;
+    
+    // Debug logging (remove in production if needed)
+    console.log('County header matched:', {
+      slug: slugToUse,
+      county: matchedCounty,
+      imageUrl: imageUrl
+    });
+    
+    // Find where to insert the header (before topic list or after category title)
+    const insertPoint = document.querySelector('.category-title, .topic-list, .category-list');
+    if (!insertPoint) {
+      return;
+    }
+    
+    // Create header HTML
+    const headerHTML = `
+      <div class="county-category-header">
+        <a href="${externalUrl}" target="_blank" rel="noopener noreferrer" class="county-header-link">
+          <img src="${imageUrl}" alt="${countyName}" class="county-header-image" />
+        </a>
+      </div>
+    `;
+    
+    // Insert before the insert point
+    insertPoint.insertAdjacentHTML('beforebegin', headerHTML);
+  }
 </script>
 
