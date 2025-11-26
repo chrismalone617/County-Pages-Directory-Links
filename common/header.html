@@ -1,0 +1,100 @@
+<script type="text/discourse-plugin" version="0.8">
+  api.onPageChange((url, title) => {
+    // Only run on category pages
+    if (!url.includes('/c/')) {
+      return;
+    }
+    
+    // Wait for page to load
+    setTimeout(() => {
+      // Check if we already added the header (avoid duplicates)
+      if (document.querySelector('.county-category-header')) {
+        return;
+      }
+      
+      // Get category slug from URL or body class
+      const bodyClasses = document.body.className.split(' ');
+      let categorySlug = null;
+      
+      // Find category class (format: category-*)
+      for (let className of bodyClasses) {
+        if (className.startsWith('category-') && className.includes('county')) {
+          // Extract slug from class (remove 'category-' prefix)
+          categorySlug = className.replace('category-', '');
+          break;
+        }
+      }
+      
+      // Also try to get from URL
+      if (!categorySlug) {
+        const urlMatch = url.match(/\/c\/[^\/]+\/([^\/]+)/);
+        if (urlMatch && urlMatch[1] && urlMatch[1].includes('county')) {
+          categorySlug = urlMatch[1];
+        }
+      }
+      
+      if (!categorySlug || !categorySlug.includes('county')) {
+        return;
+      }
+      
+      // Extract just the subcategory slug if it's a nested category
+      let slugToUse = categorySlug;
+      if (categorySlug.includes('-') && categorySlug.split('-').length > 3) {
+        const parts = categorySlug.split('-');
+        const countyIndex = parts.indexOf('county');
+        if (countyIndex >= 0 && countyIndex < parts.length - 1) {
+          slugToUse = parts.slice(countyIndex - 1).join('-');
+        }
+      }
+      
+      // Get counties from settings
+      const countiesSetting = api.getSetting('counties') || [];
+      if (!countiesSetting || countiesSetting.length === 0) {
+        return;
+      }
+      
+      // Parse counties from settings and find matching county
+      let matchedCounty = null;
+      for (let countyJson of countiesSetting) {
+        try {
+          const county = typeof countyJson === 'string' ? JSON.parse(countyJson) : countyJson;
+          // Check if slug matches (try both slugToUse and categorySlug)
+          if (county.slug === slugToUse || county.slug === categorySlug) {
+            matchedCounty = county;
+            break;
+          }
+        } catch (e) {
+          console.error('Error parsing county JSON:', e, countyJson);
+        }
+      }
+      
+      // If no matching county found, don't show header
+      if (!matchedCounty || !matchedCounty.imageUrl || !matchedCounty.directoryUrl) {
+        return;
+      }
+      
+      const imageUrl = matchedCounty.imageUrl;
+      const externalUrl = matchedCounty.directoryUrl;
+      const countyName = matchedCounty.name || slugToUse;
+      
+      // Find where to insert the header (before topic list or after category title)
+      const insertPoint = document.querySelector('.category-title, .topic-list, .category-list');
+      if (!insertPoint) {
+        return;
+      }
+      
+      // Create header HTML
+      const headerHTML = `
+        <div class="county-category-header">
+          <a href="${externalUrl}" target="_blank" rel="noopener noreferrer" class="county-header-link">
+            <img src="${imageUrl}" alt="${countyName}" class="county-header-image" />
+          </a>
+        </div>
+      `;
+      
+      // Insert before the insert point
+      insertPoint.insertAdjacentHTML('beforebegin', headerHTML);
+    }, 500); // Wait 500ms for page to fully load
+  });
+</script>
+
