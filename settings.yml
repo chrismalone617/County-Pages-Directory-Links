@@ -1,13 +1,5 @@
 counties:
-  default: |
-    [
-      {
-        "name": "Reeves County",
-        "slug": "reeves-county-tx",
-        "imageUrl": "/uploads/db5755/original/3X/3/7/378e553519f9d393623059dd6beadbe1593cc79e.jpg",
-        "directoryUrl": "https://reeves-county-texas.mineralrightsforum.com/"
-      }
-    ]
+  default: '[{"name":"Reeves County","slug":"reeves-county-tx","imageUrl":"/uploads/db5755/original/3X/3/7/378e553519f9d393623059dd6beadbe1593cc79e.jpg","directoryUrl":"https://reeves-county-texas.mineralrightsforum.com/"}]'
   type: json
   description: "Array of county configurations. To add an image: 1) Upload image via Discourse Media Uploader (Settings → Files), 2) Copy the image URL (starts with /uploads/), 3) Paste it in the imageUrl field. Each county needs: name (County Name), slug (County Page Class like 'reeves-county-tx'), imageUrl (full image URL path), and directoryUrl (full directory URL)."
 
