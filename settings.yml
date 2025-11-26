@@ -1,5 +1,5 @@
 county_header_image_url:
   default: ""
   type: upload
-  description: "Default image for county headers (optional). Upload images via Theme Uploader (Themes → Your Theme → Upload → select from assets folder), then reference as '/assets/filename.jpg' in the code. Or add specific images per county in the header.html file."
+  description: "Image to display in county category headers (leave empty to use default)"
 
